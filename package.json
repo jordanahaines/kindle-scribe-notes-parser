@@ -1,0 +1,39 @@
+{
+  "name": "kindle-scribe-notes-parser",
+  "version": "0.1.0",
+  "description": "Parses Kindle Scribe notebook export PDFs into structured highlight and note records",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jordanahaines/kindle-scribe-notes-parser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jordanahaines/kindle-scribe-notes-parser/issues"
+  },
+  "homepage": "https://github.com/jordanahaines/kindle-scribe-notes-parser#readme",
+  "dependencies": {
+    "mupdf": "^1.28.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  }
+}
