@@ -1,8 +1,14 @@
 #!/usr/bin/env node
+import { config as loadDotenv } from "dotenv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 import { parseNotebook, transcribeNotes } from "./index.js";
 import type { HighlightRecord, NoteToTranscribe, TranscriptionResult } from "./types.js";
+
+// Loads a .env file from the current directory, if present, so AI_GATEWAY_API_KEY
+// (etc.) can be set there instead of exported in the shell. Silently a no-op when
+// no .env file exists; existing environment variables always take precedence.
+loadDotenv({ quiet: true });
 
 function printUsage(): void {
   console.log(`Usage: kindle-scribe-parse <pdf-path> [options]

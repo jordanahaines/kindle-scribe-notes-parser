@@ -97,6 +97,11 @@ AI_GATEWAY_API_KEY=... \
   npx kindle-scribe-parse my-book-notebook.pdf --ocr --keep-images -o ./notes
 ```
 
+`AI_GATEWAY_API_KEY` doesn't have to be exported in your shell — the CLI loads
+a `.env` file from the current directory automatically (via `dotenv`), so a
+`.env` containing `AI_GATEWAY_API_KEY=...` works too. A variable already set
+in the environment always wins over the `.env` file.
+
 During local development (without building/installing first), run it via:
 
 ```bash
