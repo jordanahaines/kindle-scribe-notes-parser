@@ -4,7 +4,7 @@ Parses a Kindle Scribe "notebook export" PDF (Share → email PDF from the devic
 into structured book metadata and highlight/note records.
 
 ```ts
-import { parseNotebook } from "kindle-scribe-notes-parser";
+import { parseNotebook } from "historio-kindle-scribe-notes-parser";
 import { readFile } from "node:fs/promises";
 
 const pdfBytes = await readFile("my-book-notebook.pdf");
