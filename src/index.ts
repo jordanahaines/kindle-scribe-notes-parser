@@ -10,7 +10,13 @@ export type {
   TypedNote,
   HandwrittenNote,
   BookMetadata,
+  NoteToTranscribe,
+  TranscriptionResult,
+  TranscriptionModel,
+  TranscribeOptions,
 } from "./types.js";
+
+export { transcribeNotes, TranscriptionValidationError } from "./transcribe.js";
 
 export function parseNotebook(pdfBytes: Uint8Array): ParsedNotebook {
   const document = mupdf.Document.openDocument(pdfBytes, "application/pdf");

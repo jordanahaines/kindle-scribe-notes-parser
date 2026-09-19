@@ -14,6 +14,32 @@ book; // { title, author, asin }
 highlights; // HighlightRecord[]
 ```
 
+## Handwriting transcription
+
+`transcribeNotes` turns handwritten note images (as returned by `parseNotebook`)
+into text via Anthropic vision models. It's a separate, stateless function — it
+doesn't call `parseNotebook` for you and never reads credentials from
+`process.env`.
+
+```ts
+import { transcribeNotes } from "historio-kindle-scribe-notes-parser";
+
+const results = await transcribeNotes(
+  [{ id: "highlight-4", image: noteImageBytes }],
+  alreadyTranscribedIds, // ids to skip re-transcribing, e.g. from your own DB
+  { apiKey: process.env.ANTHROPIC_API_KEY },
+);
+
+results; // [{ id, transcription, confidence, isDiagram, model }]
+```
+
+All not-skipped images are sent to `claude-haiku-4-5-20251001` in a single
+multi-image request. Any result whose `confidence` falls below
+`confidenceThreshold` (default `0.7`) is re-transcribed in one follow-up
+`claude-sonnet-5` request and replaces the Haiku result. Pass a
+pre-constructed Vercel AI SDK model via `options.model` instead of `apiKey`
+(e.g. for tests, using `ai/test`'s mock model).
+
 ## CLI
 
 Installing the package also gives you a `kindle-scribe-parse` command:
@@ -67,9 +93,11 @@ npm run cli -- my-book-notebook.pdf
 
 ## What it doesn't do
 
-- No OCR or handwriting transcription — handwritten notes are returned as raw
-  image bytes only.
-- No deduplication against previously-parsed notebooks.
+- `parseNotebook` does no OCR — handwritten notes come back as raw image bytes;
+  `transcribeNotes` (above) is a separate opt-in step.
+- No deduplication against previously-parsed notebooks (`transcribeNotes` skips
+  re-transcription given an `alreadyTranscribedIds` set, but computing that set
+  is the caller's responsibility).
 - No support for PDF exports other than the Kindle Scribe notebook format.
 
 ## License and the `mupdf` dependency
