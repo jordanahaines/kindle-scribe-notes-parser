@@ -1,6 +1,6 @@
 {
   "name": "historio-kindle-scribe-notes-parser",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Parses Kindle Scribe notebook export PDFs into structured highlight and note records",
   "license": "AGPL-3.0-only",
   "type": "module",
