@@ -4,4 +4,3 @@ dist/
 scripts/output/**
 kindle-scribe-parse/output
 .env
-.env.*
