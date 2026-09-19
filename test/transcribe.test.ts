@@ -66,7 +66,7 @@ describe("transcribeNotes", () => {
     expect(fileIdsInCall(model.doGenerateCalls[0])).toEqual(["a", "b", "c"]);
     expect(results).toHaveLength(3);
     for (const result of results) {
-      expect(result.model).toBe("gemini-3.7-flash");
+      expect(result.model).toBe("google/gemini-3.7-flash");
     }
   });
 
@@ -108,9 +108,9 @@ describe("transcribeNotes", () => {
     expect(fileIdsInCall(model.doGenerateCalls[1])).toEqual(["b", "c"]);
 
     const byId = new Map(results.map((r) => [r.id, r]));
-    expect(byId.get("a")).toMatchObject({ transcription: "gemini-a", model: "gemini-3.7-flash" });
-    expect(byId.get("b")).toMatchObject({ transcription: "sonnet-b", model: "claude-sonnet-5" });
-    expect(byId.get("c")).toMatchObject({ transcription: "sonnet-c", model: "claude-sonnet-5" });
+    expect(byId.get("a")).toMatchObject({ transcription: "gemini-a", model: "google/gemini-3.7-flash" });
+    expect(byId.get("b")).toMatchObject({ transcription: "sonnet-b", model: "anthropic/claude-sonnet-5" });
+    expect(byId.get("c")).toMatchObject({ transcription: "sonnet-c", model: "anthropic/claude-sonnet-5" });
   });
 
   it("throws a typed error on a malformed model response", async () => {
@@ -138,7 +138,7 @@ describe("transcribeNotes", () => {
     expect(model.doGenerateCalls).toHaveLength(0);
   });
 
-  it("requires either googleApiKey or model to be provided", async () => {
+  it("requires either gatewayApiKey or model to be provided", async () => {
     const input = notes(["a"]);
     await expect(transcribeNotes(input, [], {})).rejects.toThrow(TranscriptionValidationError);
   });

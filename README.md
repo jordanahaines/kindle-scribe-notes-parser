@@ -17,8 +17,12 @@ highlights; // HighlightRecord[]
 ## Handwriting transcription
 
 `transcribeNotes` turns handwritten note images (as returned by `parseNotebook`)
-into text via vision models. It's a separate, stateless function — it doesn't
-call `parseNotebook` for you and never reads credentials from `process.env`.
+into text via vision models, routed through [Vercel AI
+Gateway](https://vercel.com/docs/ai-gateway) — one gateway key authenticates
+every provider the function calls, so there's no per-provider (Anthropic,
+Google, ...) credential to manage. It's a separate, stateless function — it
+doesn't call `parseNotebook` for you and never reads credentials from
+`process.env`.
 
 ```ts
 import { transcribeNotes } from "historio-kindle-scribe-notes-parser";
@@ -26,22 +30,19 @@ import { transcribeNotes } from "historio-kindle-scribe-notes-parser";
 const results = await transcribeNotes(
   [{ id: "highlight-4", image: noteImageBytes }],
   alreadyTranscribedIds, // ids to skip re-transcribing, e.g. from your own DB
-  {
-    googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY, // only needed if a note escalates
-  },
+  { gatewayApiKey: process.env.AI_GATEWAY_API_KEY },
 );
 
 results; // [{ id, transcription, confidence, isDiagram, model }]
 ```
 
-All not-skipped images are sent to `gemini-3.7-flash` in a single multi-image
-request. Any result whose `confidence` falls below `confidenceThreshold`
-(default `0.7`) is re-transcribed in one follow-up `claude-sonnet-5` request
-and replaces the Gemini result. Pass a pre-constructed Vercel AI SDK model via
-`options.model` instead of `googleApiKey`/`anthropicApiKey` (e.g. for tests,
-using `ai/test`'s mock model) — it's used for both the primary and any
-escalation call.
+All not-skipped images are sent to `google/gemini-3.7-flash` (via the gateway)
+in a single multi-image request. Any result whose `confidence` falls below
+`confidenceThreshold` (default `0.7`) is re-transcribed in one follow-up
+`anthropic/claude-sonnet-5` request and replaces the Gemini result. Pass a
+pre-constructed Vercel AI SDK model via `options.model` instead of
+`gatewayApiKey` (e.g. for tests, using `ai/test`'s mock model) — it's used for
+both the primary and any escalation call.
 
 ## CLI
 
@@ -65,12 +66,12 @@ Options:
                        note images are still written to disk (unless deleted, see
                        --ocr); the JSON references their path rather than embedding
                        raw image bytes.
-  --ocr               Transcribe handwritten notes into text via vision models
-                       (Gemini 3.7 Flash, escalating low-confidence results to
-                       Claude Sonnet). Requires the GOOGLE_GENERATIVE_AI_API_KEY
-                       environment variable, and ANTHROPIC_API_KEY if any note
-                       escalates. Handwritten note images are NOT written to disk
-                       unless --keep-images is also given.
+  --ocr               Transcribe handwritten notes into text via vision models,
+                       routed through Vercel AI Gateway (Gemini 3.7 Flash,
+                       escalating low-confidence results to Claude Sonnet).
+                       Requires the AI_GATEWAY_API_KEY environment variable.
+                       Handwritten note images are NOT written to disk unless
+                       --keep-images is also given.
   --keep-images       Write handwritten note images to disk even when --ocr is
                        used. Images are always written when --ocr is not given,
                        so this flag has no effect in that case.
@@ -88,11 +89,11 @@ npx kindle-scribe-parse my-book-notebook.pdf --json > notebook.json
 
 # Transcribe handwritten notes to text; deletes note images by default once
 # they've been transcribed (nothing is written to -o at all in this mode)
-GOOGLE_GENERATIVE_AI_API_KEY=... ANTHROPIC_API_KEY=... \
+AI_GATEWAY_API_KEY=... \
   npx kindle-scribe-parse my-book-notebook.pdf --ocr --json > notebook.json
 
 # Same, but keep the handwritten note images on disk too
-GOOGLE_GENERATIVE_AI_API_KEY=... ANTHROPIC_API_KEY=... \
+AI_GATEWAY_API_KEY=... \
   npx kindle-scribe-parse my-book-notebook.pdf --ocr --keep-images -o ./notes
 ```
 

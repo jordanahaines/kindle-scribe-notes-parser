@@ -1,11 +1,10 @@
 import { generateObject, type LanguageModel } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogle } from "@ai-sdk/google";
+import { createGateway } from "@ai-sdk/gateway";
 import { z } from "zod";
 import type { NoteToTranscribe, TranscribeOptions, TranscriptionModel, TranscriptionResult } from "./types.js";
 
-const PRIMARY_MODEL_ID: TranscriptionModel = "gemini-3.7-flash";
-const ESCALATION_MODEL_ID: TranscriptionModel = "claude-sonnet-5";
+const PRIMARY_MODEL_ID: TranscriptionModel = "google/gemini-3.7-flash";
+const ESCALATION_MODEL_ID: TranscriptionModel = "anthropic/claude-sonnet-5";
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 
 const SYSTEM_PROMPT = `You transcribe handwritten notes from a Kindle Scribe e-reader. Each image is a
@@ -32,19 +31,11 @@ export class TranscriptionValidationError extends Error {
   }
 }
 
-function resolvePrimaryModel(options: TranscribeOptions): LanguageModel {
+function resolveModel(options: TranscribeOptions, modelId: TranscriptionModel): LanguageModel {
   if (options.model) return options.model;
-  if (options.googleApiKey) return createGoogle({ apiKey: options.googleApiKey })(PRIMARY_MODEL_ID);
+  if (options.gatewayApiKey) return createGateway({ apiKey: options.gatewayApiKey })(modelId);
   throw new TranscriptionValidationError(
-    "transcribeNotes requires either options.googleApiKey or options.model to be set",
-  );
-}
-
-function resolveEscalationModel(options: TranscribeOptions): LanguageModel {
-  if (options.model) return options.model;
-  if (options.anthropicApiKey) return createAnthropic({ apiKey: options.anthropicApiKey })(ESCALATION_MODEL_ID);
-  throw new TranscriptionValidationError(
-    "transcribeNotes requires either options.anthropicApiKey or options.model to be set for escalation",
+    "transcribeNotes requires either options.gatewayApiKey or options.model to be set",
   );
 }
 
@@ -103,14 +94,14 @@ export async function transcribeNotes(
 
   const threshold = options.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
 
-  const primaryModel = resolvePrimaryModel(options);
+  const primaryModel = resolveModel(options, PRIMARY_MODEL_ID);
   const primaryResults = await runBatch(pending, primaryModel, PRIMARY_MODEL_ID);
 
   const escalationNotes = pending.filter((note) => (primaryResults.get(note.id)?.confidence ?? 1) < threshold);
 
   let finalResults = primaryResults;
   if (escalationNotes.length > 0) {
-    const escalationModel = resolveEscalationModel(options);
+    const escalationModel = resolveModel(options, ESCALATION_MODEL_ID);
     const escalationResults = await runBatch(escalationNotes, escalationModel, ESCALATION_MODEL_ID);
     finalResults = new Map(primaryResults);
     for (const [id, result] of escalationResults) finalResults.set(id, result);

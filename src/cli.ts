@@ -16,12 +16,12 @@ Options:
                        note images are still written to disk (unless deleted, see
                        --ocr); the JSON references their path rather than embedding
                        raw image bytes.
-  --ocr               Transcribe handwritten notes into text via vision models
-                       (Gemini 3.7 Flash, escalating low-confidence results to
-                       Claude Sonnet). Requires the GOOGLE_GENERATIVE_AI_API_KEY
-                       environment variable, and ANTHROPIC_API_KEY if any note
-                       escalates. Handwritten note images are NOT written to disk
-                       unless --keep-images is also given.
+  --ocr               Transcribe handwritten notes into text via vision models,
+                       routed through Vercel AI Gateway (Gemini 3.7 Flash,
+                       escalating low-confidence results to Claude Sonnet).
+                       Requires the AI_GATEWAY_API_KEY environment variable.
+                       Handwritten note images are NOT written to disk unless
+                       --keep-images is also given.
   --keep-images       Write handwritten note images to disk even when --ocr is
                        used. Images are always written when --ocr is not given,
                        so this flag has no effect in that case.
@@ -105,9 +105,9 @@ function identifyHandwrittenNotes(highlights: HighlightRecord[]): IdentifiedNote
 }
 
 async function transcribeHandwrittenNotes(identified: IdentifiedNote[]): Promise<Map<string, TranscriptionResult>> {
-  const googleApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  if (!googleApiKey) {
-    throw new Error("--ocr requires the GOOGLE_GENERATIVE_AI_API_KEY environment variable to be set");
+  const gatewayApiKey = process.env.AI_GATEWAY_API_KEY;
+  if (!gatewayApiKey) {
+    throw new Error("--ocr requires the AI_GATEWAY_API_KEY environment variable to be set");
   }
 
   const notes: NoteToTranscribe[] = identified.map(({ highlight, id }) => {
@@ -115,10 +115,7 @@ async function transcribeHandwrittenNotes(identified: IdentifiedNote[]): Promise
     return { id, image: highlight.note.image };
   });
 
-  const results = await transcribeNotes(notes, [], {
-    googleApiKey,
-    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-  });
+  const results = await transcribeNotes(notes, [], { gatewayApiKey });
 
   return new Map(results.map((result) => [result.id, result]));
 }
