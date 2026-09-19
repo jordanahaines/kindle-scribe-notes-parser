@@ -3,3 +3,5 @@ dist/
 *.log
 scripts/output/**
 kindle-scribe-parse/output
+.env
+.env.*
