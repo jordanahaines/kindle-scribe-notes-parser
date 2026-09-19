@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { basename, extname, join, resolve } from "node:path";
 import { parseNotebook } from "./index.js";
 
 function printUsage(): void {
@@ -10,7 +10,7 @@ Parses a Kindle Scribe notebook export PDF into structured highlight and note re
 
 Options:
   -o, --out <dir>   Directory to write handwritten note images to
-                     (default: "<pdf-name>-notes" next to the PDF)
+                     (default: "./kindle-scribe-parse/output/<pdf-name>")
   --json            Print the full parsed result as JSON to stdout. Handwritten note
                      images are still written to disk; the JSON references their path
                      rather than embedding raw image bytes.
@@ -60,7 +60,9 @@ function parseArgs(argv: string[]): CliArgs {
 async function run(args: CliArgs): Promise<void> {
   const pdfPath = resolve(args.pdfPath);
   const pdfName = basename(pdfPath, extname(pdfPath));
-  const outDir = resolve(args.outDir ?? join(dirname(pdfPath), `${pdfName}-notes`));
+  const outDir = resolve(
+    args.outDir ?? join("kindle-scribe-parse", "output", pdfName),
+  );
 
   const bytes = await readFile(pdfPath);
   const result = parseNotebook(new Uint8Array(bytes));

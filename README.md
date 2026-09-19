@@ -23,15 +23,15 @@ npx kindle-scribe-parse my-book-notebook.pdf
 ```
 
 By default this prints a human-readable summary of the book and its highlights,
-and writes any handwritten note images as PNGs to a `<pdf-name>-notes/` folder
-next to the PDF.
+and writes any handwritten note images as PNGs to
+`./kindle-scribe-parse/output/<pdf-name>/`, relative to your current directory.
 
 ```
 Usage: kindle-scribe-parse <pdf-path> [options]
 
 Options:
   -o, --out <dir>   Directory to write handwritten note images to
-                     (default: "<pdf-name>-notes" next to the PDF)
+                     (default: "./kindle-scribe-parse/output/<pdf-name>")
   --json            Print the full parsed result as JSON to stdout. Handwritten
                      note images are still written to disk; the JSON references
                      their path rather than embedding raw image bytes.
