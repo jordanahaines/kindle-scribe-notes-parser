@@ -14,6 +14,46 @@ book; // { title, author, asin }
 highlights; // HighlightRecord[]
 ```
 
+## CLI
+
+Installing the package also gives you a `kindle-scribe-parse` command:
+
+```bash
+npx kindle-scribe-parse my-book-notebook.pdf
+```
+
+By default this prints a human-readable summary of the book and its highlights,
+and writes any handwritten note images as PNGs to a `<pdf-name>-notes/` folder
+next to the PDF.
+
+```
+Usage: kindle-scribe-parse <pdf-path> [options]
+
+Options:
+  -o, --out <dir>   Directory to write handwritten note images to
+                     (default: "<pdf-name>-notes" next to the PDF)
+  --json            Print the full parsed result as JSON to stdout. Handwritten
+                     note images are still written to disk; the JSON references
+                     their path rather than embedding raw image bytes.
+  -h, --help        Show this help message
+```
+
+Examples:
+
+```bash
+# Write note images to a specific directory
+npx kindle-scribe-parse my-book-notebook.pdf -o ./notes
+
+# Get structured JSON (e.g. to pipe into another tool)
+npx kindle-scribe-parse my-book-notebook.pdf --json > notebook.json
+```
+
+During local development (without building/installing first), run it via:
+
+```bash
+npm run cli -- my-book-notebook.pdf
+```
+
 ## What it does
 
 - Extracts book `title`, `author`, and `asin` from the notebook's header page.
@@ -47,9 +87,7 @@ own legal advice before shipping this in a closed-source or commercial product.
 Artifex also offers commercial licenses for `mupdf` if AGPL terms don't work for
 your use case.
 
-A reimplementation of this package on [`pdfjs-dist`](https://github.com/mozilla/pdf.js)
-(Apache-2.0) is a known, deliberately-deferred fallback if the AGPL dependency
-ever becomes a blocker — see this repo's issue tracker.
+Note that if this license agreement is not what you want, consider [`pdfjs-dist`](https://github.com/mozilla/pdf.js) (Apache-2.0).
 
 ## Development
 
@@ -61,3 +99,18 @@ npm test
 
 Requires no Python runtime or subprocess — pure JS/TS plus the `mupdf` WASM
 dependency.
+
+## Releasing
+
+Publishing is manual — there's no CI-triggered publish step. From a clean,
+up-to-date `main`:
+
+```bash
+npm version patch   # or minor / major — runs typecheck+test, bumps the
+                     # version, commits, tags, and pushes both (preversion/
+                     # postversion hooks in package.json)
+npm publish          # builds dist/ via prepublishOnly, then publishes
+```
+
+`npm login` once beforehand if you haven't authenticated with npm on this
+machine.

@@ -12,13 +12,20 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "kindle-scribe-parse": "./dist/cli.js"
+  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && chmod +x dist/cli.js",
+    "preversion": "npm run typecheck && npm test",
+    "postversion": "git push && git push --tags",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "cli": "tsx src/cli.ts"
   },
   "repository": {
     "type": "git",
@@ -32,7 +39,9 @@
     "mupdf": "^1.28.1"
   },
   "devDependencies": {
+    "@types/node": "^26.6.2",
     "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   }
