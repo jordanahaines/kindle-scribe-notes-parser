@@ -3,7 +3,7 @@ import { config as loadDotenv } from "dotenv";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
 import { parseNotebook, transcribeNotes } from "./index.js";
-import type { HighlightRecord, NoteToTranscribe, TranscriptionResult } from "./types.js";
+import type { HighlightRecord, NoteToTranscribe, TranscriptionProgressEvent, TranscriptionResult } from "./types.js";
 
 // Loads a .env file from the current directory, if present, so AI_GATEWAY_API_KEY
 // (etc.) can be set there instead of exported in the shell. Silently a no-op when
@@ -16,12 +16,15 @@ function printUsage(): void {
 Parses a Kindle Scribe notebook export PDF into structured highlight and note records.
 
 Options:
-  -o, --out <dir>     Directory to write handwritten note images to
+  -o, --out <dir>     Directory to write handwritten note images and
+                       highlights.json to
                        (default: "./kindle-scribe-parse/output/<pdf-name>")
-  --json              Print the full parsed result as JSON to stdout. Handwritten
-                       note images are still written to disk (unless deleted, see
-                       --ocr); the JSON references their path rather than embedding
-                       raw image bytes.
+  --json              Also print the full parsed result as JSON to stdout
+                       (it's always written to highlights.json in the output
+                       directory regardless of this flag). Handwritten note
+                       images are still written to disk (unless deleted, see
+                       --ocr); the JSON references their path rather than
+                       embedding raw image bytes.
   --ocr               Transcribe handwritten notes into text via vision models,
                        routed through Vercel AI Gateway (Gemini 3.7 Flash,
                        escalating low-confidence results to Claude Sonnet).
@@ -110,6 +113,22 @@ function identifyHandwrittenNotes(highlights: HighlightRecord[]): IdentifiedNote
   return identified;
 }
 
+function logTranscriptionProgress(event: TranscriptionProgressEvent): void {
+  if (event.stage === "primary" && event.phase === "start") {
+    console.error(`Transcribing ${event.count} handwritten note(s) with ${event.model}...`);
+  } else if (event.stage === "primary" && event.phase === "done") {
+    console.error(
+      event.escalatedCount > 0
+        ? `${event.model} done — ${event.escalatedCount} low-confidence note(s) need escalation.`
+        : `${event.model} done — all ${event.count} note(s) transcribed with sufficient confidence.`,
+    );
+  } else if (event.stage === "escalation" && event.phase === "start") {
+    console.error(`Escalating ${event.count} note(s) to ${event.model}...`);
+  } else if (event.stage === "escalation" && event.phase === "done") {
+    console.error(`${event.model} escalation done.`);
+  }
+}
+
 async function transcribeHandwrittenNotes(identified: IdentifiedNote[]): Promise<Map<string, TranscriptionResult>> {
   const gatewayApiKey = process.env.AI_GATEWAY_API_KEY;
   if (!gatewayApiKey) {
@@ -121,7 +140,7 @@ async function transcribeHandwrittenNotes(identified: IdentifiedNote[]): Promise
     return { id, image: highlight.note.image };
   });
 
-  const results = await transcribeNotes(notes, [], { gatewayApiKey });
+  const results = await transcribeNotes(notes, [], { gatewayApiKey, onProgress: logTranscriptionProgress });
 
   return new Map(results.map((result) => [result.id, result]));
 }
@@ -145,15 +164,12 @@ async function run(args: CliArgs): Promise<void> {
 
   let transcriptions = new Map<string, TranscriptionResult>();
   if (args.ocr && identified.length > 0) {
-    if (!args.json) {
-      console.log(`Transcribing ${identified.length} handwritten note(s)...\n`);
-    }
     transcriptions = await transcribeHandwrittenNotes(identified);
   }
 
-  if (writeImages && identified.length > 0) {
-    await mkdir(outDir, { recursive: true });
-  }
+  // highlights.json is always written alongside the images, so the directory
+  // is needed even on a run that writes no images (e.g. --ocr without --keep-images).
+  await mkdir(outDir, { recursive: true });
 
   const jsonHighlights: unknown[] = [];
 
@@ -188,9 +204,9 @@ async function run(args: CliArgs): Promise<void> {
       };
     }
 
-    if (args.json) {
-      jsonHighlights.push({ ...highlight, note: jsonNote });
-    } else {
+    jsonHighlights.push({ ...highlight, note: jsonNote });
+
+    if (!args.json) {
       console.log(`--- page ${highlight.page} (${highlight.chapter ?? "—"}) ---`);
       console.log(`date: ${highlight.date.toISOString()}`);
       console.log(`text: ${highlight.text}`);
@@ -213,10 +229,17 @@ async function run(args: CliArgs): Promise<void> {
     }
   }
 
+  const jsonOutput = { book: result.book, highlights: jsonHighlights };
+  const jsonPath = join(outDir, "highlights.json");
+  await writeFile(jsonPath, JSON.stringify(jsonOutput, null, 2));
+
+  if (writeImages && identified.length > 0) {
+    console.error(`Handwritten note images written to: ${outDir}`);
+  }
+  console.error(`Highlights JSON written to: ${jsonPath}`);
+
   if (args.json) {
-    console.log(JSON.stringify({ book: result.book, highlights: jsonHighlights }, null, 2));
-  } else if (writeImages && identified.length > 0) {
-    console.log(`Handwritten note images written to: ${outDir}`);
+    console.log(JSON.stringify(jsonOutput, null, 2));
   }
 }
 

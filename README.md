@@ -44,6 +44,21 @@ pre-constructed Vercel AI SDK model via `options.model` instead of
 `gatewayApiKey` (e.g. for tests, using `ai/test`'s mock model) — it's used for
 both the primary and any escalation call.
 
+Pass `onProgress` to observe the two batched calls as they happen (e.g. to log
+progress in a CLI) — it fires at the start and end of the primary call, and,
+only if anything escalates, at the start and end of the escalation call:
+
+```ts
+await transcribeNotes(notes, alreadyTranscribedIds, {
+  gatewayApiKey: process.env.AI_GATEWAY_API_KEY,
+  onProgress: (event) => console.error(event),
+  // { stage: 'primary', phase: 'start', model: 'google/gemini-3.7-flash', count: 24 }
+  // { stage: 'primary', phase: 'done', model: 'google/gemini-3.7-flash', count: 24, escalatedCount: 3 }
+  // { stage: 'escalation', phase: 'start', model: 'anthropic/claude-sonnet-5', count: 3 }
+  // { stage: 'escalation', phase: 'done', model: 'anthropic/claude-sonnet-5', count: 3 }
+});
+```
+
 ## CLI
 
 Installing the package also gives you a `kindle-scribe-parse` command:
@@ -52,26 +67,33 @@ Installing the package also gives you a `kindle-scribe-parse` command:
 npx kindle-scribe-parse my-book-notebook.pdf
 ```
 
-By default this prints a human-readable summary of the book and its highlights,
-and writes any handwritten note images as PNGs to
-`./kindle-scribe-parse/output/<pdf-name>/`, relative to your current directory.
+By default this prints a human-readable summary of the book and its highlights
+to stdout, and always writes two things to
+`./kindle-scribe-parse/output/<pdf-name>/`, relative to your current directory:
+a `highlights.json` file (book metadata + every highlight, with OCR fields
+folded in when `--ocr` is used) and, unless deleted (see `--ocr` below), any
+handwritten note images as PNGs.
 
 ```
 Usage: kindle-scribe-parse <pdf-path> [options]
 
 Options:
-  -o, --out <dir>     Directory to write handwritten note images to
+  -o, --out <dir>     Directory to write handwritten note images and
+                       highlights.json to
                        (default: "./kindle-scribe-parse/output/<pdf-name>")
-  --json              Print the full parsed result as JSON to stdout. Handwritten
-                       note images are still written to disk (unless deleted, see
-                       --ocr); the JSON references their path rather than embedding
-                       raw image bytes.
+  --json              Also print the full parsed result as JSON to stdout
+                       (it's always written to highlights.json in the output
+                       directory regardless of this flag). Handwritten note
+                       images are still written to disk (unless deleted, see
+                       --ocr); the JSON references their path rather than
+                       embedding raw image bytes.
   --ocr               Transcribe handwritten notes into text via vision models,
                        routed through Vercel AI Gateway (Gemini 3.7 Flash,
                        escalating low-confidence results to Claude Sonnet).
                        Requires the AI_GATEWAY_API_KEY environment variable.
                        Handwritten note images are NOT written to disk unless
-                       --keep-images is also given.
+                       --keep-images is also given. Progress is logged to
+                       stderr as each batched model call starts and finishes.
   --keep-images       Write handwritten note images to disk even when --ocr is
                        used. Images are always written when --ocr is not given,
                        so this flag has no effect in that case.

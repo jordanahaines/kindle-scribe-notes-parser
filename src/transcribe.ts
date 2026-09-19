@@ -1,7 +1,13 @@
 import { generateObject, type LanguageModel } from "ai";
 import { createGateway } from "@ai-sdk/gateway";
 import { z } from "zod";
-import type { NoteToTranscribe, TranscribeOptions, TranscriptionModel, TranscriptionResult } from "./types.js";
+import type {
+  NoteToTranscribe,
+  TranscribeOptions,
+  TranscriptionModel,
+  TranscriptionProgressEvent,
+  TranscriptionResult,
+} from "./types.js";
 
 const PRIMARY_MODEL_ID: TranscriptionModel = "google/gemini-3.7-flash";
 const ESCALATION_MODEL_ID: TranscriptionModel = "anthropic/claude-sonnet-5";
@@ -93,16 +99,27 @@ export async function transcribeNotes(
   if (pending.length === 0) return [];
 
   const threshold = options.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
+  const emit = (event: TranscriptionProgressEvent) => options.onProgress?.(event);
 
   const primaryModel = resolveModel(options, PRIMARY_MODEL_ID);
+  emit({ stage: "primary", phase: "start", model: PRIMARY_MODEL_ID, count: pending.length });
   const primaryResults = await runBatch(pending, primaryModel, PRIMARY_MODEL_ID);
 
   const escalationNotes = pending.filter((note) => (primaryResults.get(note.id)?.confidence ?? 1) < threshold);
+  emit({
+    stage: "primary",
+    phase: "done",
+    model: PRIMARY_MODEL_ID,
+    count: pending.length,
+    escalatedCount: escalationNotes.length,
+  });
 
   let finalResults = primaryResults;
   if (escalationNotes.length > 0) {
     const escalationModel = resolveModel(options, ESCALATION_MODEL_ID);
+    emit({ stage: "escalation", phase: "start", model: ESCALATION_MODEL_ID, count: escalationNotes.length });
     const escalationResults = await runBatch(escalationNotes, escalationModel, ESCALATION_MODEL_ID);
+    emit({ stage: "escalation", phase: "done", model: ESCALATION_MODEL_ID, count: escalationNotes.length });
     finalResults = new Map(primaryResults);
     for (const [id, result] of escalationResults) finalResults.set(id, result);
   }

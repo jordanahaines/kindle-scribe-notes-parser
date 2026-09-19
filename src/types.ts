@@ -48,6 +48,12 @@ export type TranscriptionResult = {
   model: TranscriptionModel;
 };
 
+export type TranscriptionProgressEvent =
+  | { stage: "primary"; phase: "start"; model: TranscriptionModel; count: number }
+  | { stage: "primary"; phase: "done"; model: TranscriptionModel; count: number; escalatedCount: number }
+  | { stage: "escalation"; phase: "start"; model: TranscriptionModel; count: number }
+  | { stage: "escalation"; phase: "done"; model: TranscriptionModel; count: number };
+
 export type TranscribeOptions = {
   /**
    * Vercel AI Gateway API key, used to construct both the primary and
@@ -64,4 +70,6 @@ export type TranscribeOptions = {
   model?: LanguageModel;
   /** Confidence below which a note is re-transcribed with the escalation model. */
   confidenceThreshold?: number;
+  /** Called at the start/end of each batched model call, for progress reporting. */
+  onProgress?: (event: TranscriptionProgressEvent) => void;
 };

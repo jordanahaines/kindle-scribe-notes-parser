@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MockLanguageModelV3 } from "ai/test";
 import type { LanguageModelV3CallOptions, LanguageModelV3GenerateResult } from "@ai-sdk/provider";
 import { transcribeNotes, TranscriptionValidationError } from "../src/transcribe.js";
-import type { NoteToTranscribe } from "../src/types.js";
+import type { NoteToTranscribe, TranscriptionProgressEvent } from "../src/types.js";
 
 function image(): Uint8Array {
   return new Uint8Array([1, 2, 3]);
@@ -141,5 +141,46 @@ describe("transcribeNotes", () => {
   it("requires either gatewayApiKey or model to be provided", async () => {
     const input = notes(["a"]);
     await expect(transcribeNotes(input, [], {})).rejects.toThrow(TranscriptionValidationError);
+  });
+
+  it("reports progress for the primary call only when nothing escalates", async () => {
+    const input = notes(["a", "b"]);
+    const model = new MockLanguageModelV3({
+      doGenerate: mockResult([
+        { id: "a", transcription: "a", confidence: 0.95, isDiagram: false },
+        { id: "b", transcription: "b", confidence: 0.9, isDiagram: false },
+      ]),
+    });
+
+    const events: TranscriptionProgressEvent[] = [];
+    await transcribeNotes(input, [], { model, onProgress: (event) => events.push(event) });
+
+    expect(events).toEqual([
+      { stage: "primary", phase: "start", model: "google/gemini-3.7-flash", count: 2 },
+      { stage: "primary", phase: "done", model: "google/gemini-3.7-flash", count: 2, escalatedCount: 0 },
+    ]);
+  });
+
+  it("reports progress for both stages when notes escalate", async () => {
+    const input = notes(["a", "b"]);
+    const model = new MockLanguageModelV3({
+      doGenerate: [
+        mockResult([
+          { id: "a", transcription: "a", confidence: 0.95, isDiagram: false },
+          { id: "b", transcription: "b", confidence: 0.3, isDiagram: false },
+        ]),
+        mockResult([{ id: "b", transcription: "b-fixed", confidence: 0.9, isDiagram: false }]),
+      ],
+    });
+
+    const events: TranscriptionProgressEvent[] = [];
+    await transcribeNotes(input, [], { model, onProgress: (event) => events.push(event) });
+
+    expect(events).toEqual([
+      { stage: "primary", phase: "start", model: "google/gemini-3.7-flash", count: 2 },
+      { stage: "primary", phase: "done", model: "google/gemini-3.7-flash", count: 2, escalatedCount: 1 },
+      { stage: "escalation", phase: "start", model: "anthropic/claude-sonnet-5", count: 1 },
+      { stage: "escalation", phase: "done", model: "anthropic/claude-sonnet-5", count: 1 },
+    ]);
   });
 });
