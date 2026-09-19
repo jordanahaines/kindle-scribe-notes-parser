@@ -38,7 +38,7 @@ export type NoteToTranscribe = {
   image: Uint8Array;
 };
 
-export type TranscriptionModel = "claude-haiku-4-5-20251001" | "claude-sonnet-5";
+export type TranscriptionModel = "gemini-3.7-flash" | "claude-sonnet-5";
 
 export type TranscriptionResult = {
   id: string;
@@ -49,12 +49,22 @@ export type TranscriptionResult = {
 };
 
 export type TranscribeOptions = {
-  /** Anthropic API key. Required unless `model` is provided. Never read from process.env. */
-  apiKey?: string;
+  /**
+   * Google Generative AI API key, used to construct the primary Gemini model.
+   * Required unless `model` is provided. Never read from process.env.
+   */
+  googleApiKey?: string;
+  /**
+   * Anthropic API key, used to construct the Claude Sonnet escalation model.
+   * Required unless `model` is provided, and only if a note actually escalates.
+   * Never read from process.env.
+   */
+  anthropicApiKey?: string;
   /**
    * A pre-constructed Vercel AI SDK language model, used in place of the real
-   * Anthropic models for both the primary and any escalation call — e.g. a mock
-   * model from `ai/test` in tests. Required unless `apiKey` is provided.
+   * Gemini/Sonnet models for both the primary and any escalation call — e.g. a
+   * mock model from `ai/test` in tests. Required unless `googleApiKey` (and,
+   * for escalation, `anthropicApiKey`) is provided.
    */
   model?: LanguageModel;
   /** Confidence below which a note is re-transcribed with the escalation model. */

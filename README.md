@@ -17,9 +17,8 @@ highlights; // HighlightRecord[]
 ## Handwriting transcription
 
 `transcribeNotes` turns handwritten note images (as returned by `parseNotebook`)
-into text via Anthropic vision models. It's a separate, stateless function — it
-doesn't call `parseNotebook` for you and never reads credentials from
-`process.env`.
+into text via vision models. It's a separate, stateless function — it doesn't
+call `parseNotebook` for you and never reads credentials from `process.env`.
 
 ```ts
 import { transcribeNotes } from "historio-kindle-scribe-notes-parser";
@@ -27,18 +26,22 @@ import { transcribeNotes } from "historio-kindle-scribe-notes-parser";
 const results = await transcribeNotes(
   [{ id: "highlight-4", image: noteImageBytes }],
   alreadyTranscribedIds, // ids to skip re-transcribing, e.g. from your own DB
-  { apiKey: process.env.ANTHROPIC_API_KEY },
+  {
+    googleApiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY, // only needed if a note escalates
+  },
 );
 
 results; // [{ id, transcription, confidence, isDiagram, model }]
 ```
 
-All not-skipped images are sent to `claude-haiku-4-5-20251001` in a single
-multi-image request. Any result whose `confidence` falls below
-`confidenceThreshold` (default `0.7`) is re-transcribed in one follow-up
-`claude-sonnet-5` request and replaces the Haiku result. Pass a
-pre-constructed Vercel AI SDK model via `options.model` instead of `apiKey`
-(e.g. for tests, using `ai/test`'s mock model).
+All not-skipped images are sent to `gemini-3.7-flash` in a single multi-image
+request. Any result whose `confidence` falls below `confidenceThreshold`
+(default `0.7`) is re-transcribed in one follow-up `claude-sonnet-5` request
+and replaces the Gemini result. Pass a pre-constructed Vercel AI SDK model via
+`options.model` instead of `googleApiKey`/`anthropicApiKey` (e.g. for tests,
+using `ai/test`'s mock model) — it's used for both the primary and any
+escalation call.
 
 ## CLI
 
@@ -56,12 +59,22 @@ and writes any handwritten note images as PNGs to
 Usage: kindle-scribe-parse <pdf-path> [options]
 
 Options:
-  -o, --out <dir>   Directory to write handwritten note images to
-                     (default: "./kindle-scribe-parse/output/<pdf-name>")
-  --json            Print the full parsed result as JSON to stdout. Handwritten
-                     note images are still written to disk; the JSON references
-                     their path rather than embedding raw image bytes.
-  -h, --help        Show this help message
+  -o, --out <dir>     Directory to write handwritten note images to
+                       (default: "./kindle-scribe-parse/output/<pdf-name>")
+  --json              Print the full parsed result as JSON to stdout. Handwritten
+                       note images are still written to disk (unless deleted, see
+                       --ocr); the JSON references their path rather than embedding
+                       raw image bytes.
+  --ocr               Transcribe handwritten notes into text via vision models
+                       (Gemini 3.7 Flash, escalating low-confidence results to
+                       Claude Sonnet). Requires the GOOGLE_GENERATIVE_AI_API_KEY
+                       environment variable, and ANTHROPIC_API_KEY if any note
+                       escalates. Handwritten note images are NOT written to disk
+                       unless --keep-images is also given.
+  --keep-images       Write handwritten note images to disk even when --ocr is
+                       used. Images are always written when --ocr is not given,
+                       so this flag has no effect in that case.
+  -h, --help          Show this help message
 ```
 
 Examples:
@@ -72,6 +85,15 @@ npx kindle-scribe-parse my-book-notebook.pdf -o ./notes
 
 # Get structured JSON (e.g. to pipe into another tool)
 npx kindle-scribe-parse my-book-notebook.pdf --json > notebook.json
+
+# Transcribe handwritten notes to text; deletes note images by default once
+# they've been transcribed (nothing is written to -o at all in this mode)
+GOOGLE_GENERATIVE_AI_API_KEY=... ANTHROPIC_API_KEY=... \
+  npx kindle-scribe-parse my-book-notebook.pdf --ocr --json > notebook.json
+
+# Same, but keep the handwritten note images on disk too
+GOOGLE_GENERATIVE_AI_API_KEY=... ANTHROPIC_API_KEY=... \
+  npx kindle-scribe-parse my-book-notebook.pdf --ocr --keep-images -o ./notes
 ```
 
 During local development (without building/installing first), run it via:
@@ -90,6 +112,9 @@ npm run cli -- my-book-notebook.pdf
 - Merges `Highlight Continued` blocks into the preceding highlight as one record.
 - Recognizes and discards `Bookmark (Blue)` entries and standalone `Note` entries
   (annotations not attached to a highlight) — neither produces an output record.
+- The CLI's `--ocr` flag runs every handwritten note through `transcribeNotes`
+  and adds `transcription`, `confidence`, `isDiagram`, and `model` to each
+  handwritten note's output.
 
 ## What it doesn't do
 

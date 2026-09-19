@@ -1,10 +1,11 @@
 import { generateObject, type LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createGoogle } from "@ai-sdk/google";
 import { z } from "zod";
 import type { NoteToTranscribe, TranscribeOptions, TranscriptionModel, TranscriptionResult } from "./types.js";
 
-const HAIKU_MODEL_ID: TranscriptionModel = "claude-haiku-4-5-20251001";
-const SONNET_MODEL_ID: TranscriptionModel = "claude-sonnet-5";
+const PRIMARY_MODEL_ID: TranscriptionModel = "gemini-3.7-flash";
+const ESCALATION_MODEL_ID: TranscriptionModel = "claude-sonnet-5";
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 
 const SYSTEM_PROMPT = `You transcribe handwritten notes from a Kindle Scribe e-reader. Each image is a
@@ -31,11 +32,19 @@ export class TranscriptionValidationError extends Error {
   }
 }
 
-function resolveModel(options: TranscribeOptions, modelId: TranscriptionModel): LanguageModel {
+function resolvePrimaryModel(options: TranscribeOptions): LanguageModel {
   if (options.model) return options.model;
-  if (options.apiKey) return createAnthropic({ apiKey: options.apiKey })(modelId);
+  if (options.googleApiKey) return createGoogle({ apiKey: options.googleApiKey })(PRIMARY_MODEL_ID);
   throw new TranscriptionValidationError(
-    "transcribeNotes requires either options.apiKey or options.model to be set",
+    "transcribeNotes requires either options.googleApiKey or options.model to be set",
+  );
+}
+
+function resolveEscalationModel(options: TranscribeOptions): LanguageModel {
+  if (options.model) return options.model;
+  if (options.anthropicApiKey) return createAnthropic({ apiKey: options.anthropicApiKey })(ESCALATION_MODEL_ID);
+  throw new TranscriptionValidationError(
+    "transcribeNotes requires either options.anthropicApiKey or options.model to be set for escalation",
   );
 }
 
@@ -94,17 +103,17 @@ export async function transcribeNotes(
 
   const threshold = options.confidenceThreshold ?? DEFAULT_CONFIDENCE_THRESHOLD;
 
-  const haikuModel = resolveModel(options, HAIKU_MODEL_ID);
-  const haikuResults = await runBatch(pending, haikuModel, HAIKU_MODEL_ID);
+  const primaryModel = resolvePrimaryModel(options);
+  const primaryResults = await runBatch(pending, primaryModel, PRIMARY_MODEL_ID);
 
-  const escalationNotes = pending.filter((note) => (haikuResults.get(note.id)?.confidence ?? 1) < threshold);
+  const escalationNotes = pending.filter((note) => (primaryResults.get(note.id)?.confidence ?? 1) < threshold);
 
-  let finalResults = haikuResults;
+  let finalResults = primaryResults;
   if (escalationNotes.length > 0) {
-    const sonnetModel = resolveModel(options, SONNET_MODEL_ID);
-    const sonnetResults = await runBatch(escalationNotes, sonnetModel, SONNET_MODEL_ID);
-    finalResults = new Map(haikuResults);
-    for (const [id, result] of sonnetResults) finalResults.set(id, result);
+    const escalationModel = resolveEscalationModel(options);
+    const escalationResults = await runBatch(escalationNotes, escalationModel, ESCALATION_MODEL_ID);
+    finalResults = new Map(primaryResults);
+    for (const [id, result] of escalationResults) finalResults.set(id, result);
   }
 
   return pending.map((note) => {
